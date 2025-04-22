@@ -109,15 +109,13 @@
             <div
               v-for="message in messages"
               :key="message.id"
-              class="flex items-start space-x-3"
+              class="flex items-start space-x-3 mb-4"
             >
               <div v-if="message.role === 'assistant'" class="flex-shrink-0">
                 <div
-                  class="w-8 h-8 rounded-full bg-[#4CAF50] flex items-center justify-center text-white"
+                  class="w-8 h-8 rounded-full bg-[#4CAF50] flex items-center justify-center overflow-hidden"
                 >
-                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 18c4.411 0 8-3.589 8-8s-3.589-8-8-8-8 3.589-8 8 3.589 8 8 8zm-3-10c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm6 0c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm-3 5.5c2.481 0 4.5-1.119 4.5-2.5h-9c0 1.381 2.019 2.5 4.5 2.5z" />
-                  </svg>
+                  <img src="/images/chaibot-logo.svg" alt="ChaiBot" class="w-6 h-6" />
                 </div>
               </div>
               <div v-else class="flex-shrink-0">
@@ -132,33 +130,26 @@
               <div class="flex-1">
                 <div
                   class="inline-block px-4 py-2 rounded-lg"
-                  :class="message.role === 'assistant' ? 'bg-white border border-gray-200 shadow-sm' : 'bg-gray-100'"
+                  :class="message.role === 'assistant' ? 'bg-white border border-gray-200 shadow-sm' : 'bg-gray-100 font-bold'"
                 >
-                  <!-- Rendered markdown with spacing -->
-                  <p class="text-gray-700" v-html="message.content"></p>
+                  <!-- Rendered markdown with typewriter effect for assistant messages -->
+                  <p v-if="message.role === 'user'" class="text-gray-700 font-bold" v-html="message.content"></p>
+                  <p v-else class="text-gray-700 typewriter-text" v-html="message.isTyping ? typingContent : message.content"></p>
                 </div>
               </div>
             </div>
-            <!-- Loader with ChatGPT-style animation (visible only when loading is true) -->
-            <div v-if="loading" class="flex items-start space-x-3">
+            <!-- Loader with ChaiBot logo animation (visible only when loading is true) -->
+            <div v-if="loading" class="flex items-start space-x-3 mb-4">
               <div class="flex-shrink-0">
                 <div
-                  class="w-8 h-8 rounded-full bg-[#4CAF50] flex items-center justify-center text-white"
+                  class="w-8 h-8 rounded-full bg-[#4CAF50] flex items-center justify-center overflow-hidden animate-pulse"
                 >
-                  <svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="currentColor">
-                    <path
-                      d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"
-                    />
-                  </svg>
+                  <img src="/images/chaibot-logo.svg" alt="ChaiBot" class="w-6 h-6 animate-spin" />
                 </div>
               </div>
               <div class="flex-1">
                 <div class="inline-block px-4 py-2 rounded-lg bg-white border border-gray-200 shadow-sm">
-                  <div class="chatgpt-loader flex space-x-1">
-                    <span class="dot"></span>
-                    <span class="dot"></span>
-                    <span class="dot"></span>
-                  </div>
+                  <p class="text-gray-500">Thinking...</p>
                 </div>
               </div>
             </div>
@@ -200,16 +191,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-import { useAuthStore } from "~/stores/auth";
+import { ref, nextTick } from "vue";
+import { useAuthStore } from "../stores/auth";
 import { useRouter } from "vue-router";
 import axios from "axios";
 import MarkdownIt from "markdown-it";
+import { API_ENDPOINT, DEFAULT_API_KEY, API_KEY_STORAGE_KEY } from "../utils/api";
 
 interface Message {
   id: number;
   role: string;
   content: string;
+  isTyping?: boolean;
 }
 
 const authStore = useAuthStore();
@@ -217,6 +210,27 @@ const router = useRouter();
 const messages = ref<Message[]>([]);
 const newMessage = ref("");
 const loading = ref(false);
+const typingContent = ref("");
+const typingSpeed = 30; // milliseconds per character
+
+// API key from config
+const API_KEY = ref(DEFAULT_API_KEY);
+
+// Function to set the API key
+const setApiKey = (key: string) => {
+  API_KEY.value = key;
+  // Store in localStorage for persistence
+  window.localStorage.setItem(API_KEY_STORAGE_KEY, key);
+};
+
+// Check if a custom API key is stored
+const storedApiKey = window.localStorage.getItem(API_KEY_STORAGE_KEY);
+if (storedApiKey) {
+  API_KEY.value = storedApiKey;
+} else {
+  // Store the default key in localStorage for future sessions
+  window.localStorage.setItem(API_KEY_STORAGE_KEY, API_KEY.value);
+}
 
 // Initialize markdown parser
 const md = new MarkdownIt({
@@ -236,6 +250,40 @@ md.renderer.rules.ordered_list_open = function (tokens, idx, options, env, self)
   return '<ol class="list-decimal pl-5 mb-2">';
 };
 
+// Function to simulate typewriter effect
+const typewriterEffect = async (text: string, message: Message) => {
+  // Set the message as typing
+  message.isTyping = true;
+  
+  // Clear the typing content
+  typingContent.value = "";
+  
+  // Instead of trying to parse HTML, we'll type out the HTML directly
+  // This ensures all characters including citations are properly displayed
+  const totalLength = text.length;
+  const chunkSize = 3; // Process multiple characters at once for better performance
+  
+  // Type chunks of characters with a delay
+  for (let i = 0; i < totalLength; i += chunkSize) {
+    const end = Math.min(i + chunkSize, totalLength);
+    typingContent.value = text.substring(0, end);
+    await new Promise(resolve => setTimeout(resolve, typingSpeed));
+  }
+  
+  // Ensure the final content is complete
+  typingContent.value = text;
+  
+  // Wait a moment before finalizing to ensure rendering is complete
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  // Set the final content and mark as not typing
+  message.content = text;
+  message.isTyping = false;
+  
+  // Force a DOM update to ensure the last word is displayed
+  await nextTick();
+};
+
 const handleLogout = () => {
   authStore.logout();
   router.push("/login");
@@ -243,6 +291,33 @@ const handleLogout = () => {
 
 const sendMessage = async (message: string) => {
   if (!message.trim() && typeof message !== "string") return;
+  
+  // Check if API key is set
+  if (!API_KEY.value && message !== "set_api_key") {
+    // If message starts with "api_key:" then set the API key
+    if (message.toLowerCase().startsWith("api_key:")) {
+      const key = message.substring(8).trim();
+      setApiKey(key);
+      const botMessage: Message = {
+        id: Date.now(),
+        role: "assistant",
+        content: md.render("API key has been set. You can now start chatting with ChaiBot."),
+        isTyping: false
+      };
+      messages.value.push(botMessage);
+      return;
+    }
+    
+    // Prompt user to set API key
+    const botMessage: Message = {
+      id: Date.now(),
+      role: "assistant",
+      content: md.render("Please set your API key by typing 'api_key: YOUR_API_KEY'"),
+      isTyping: false
+    };
+    messages.value.push(botMessage);
+    return;
+  }
   
   // Clear input field if it's a user-typed message
   if (message === newMessage.value) {
@@ -254,6 +329,7 @@ const sendMessage = async (message: string) => {
     id: Date.now(),
     role: "user",
     content: message,
+    isTyping: false
   };
   messages.value.push(userMessage);
 
@@ -261,27 +337,63 @@ const sendMessage = async (message: string) => {
   loading.value = true;
 
   try {
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Format messages history for the API
+    const messageHistory = messages.value.map(msg => ({
+      role: msg.role,
+      content: msg.role === 'user' ? msg.content : msg.content.replace(/<[^>]*>/g, '') // Strip HTML from assistant messages
+    }));
 
-    // Check if question is about tea farming
-    const isTeaFarmingQuestion = checkIfTeaFarmingRelated(message);
-    let responseContent = "";
-
-    if (!isTeaFarmingQuestion) {
-      responseContent = "ChaiBot is focused on helping tea farmers. Would you like to ask something related to tea cultivation?";
-    } else {
-      // Simulate response based on knowledge base
-      responseContent = await generateResponse(message);
+    // Call the API with the correct format and include the access key in headers
+    const response = await axios.post(API_ENDPOINT, {
+      messages: messageHistory,
+      temperature: 0.7,
+      max_tokens: 1000,
+      stream: false,
+      provide_citations: true
+    }, {
+      headers: {
+        'Authorization': `Bearer ${API_KEY.value}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Extract the response content from the API response
+    let responseContent = "I'm having trouble understanding. Please try again.";
+    if (response.data && response.data.choices && response.data.choices.length > 0) {
+      const choice = response.data.choices[0];
+      if (choice.delta && choice.delta.content) {
+        responseContent = choice.delta.content;
+      } else if (choice.message && choice.message.content) {
+        responseContent = choice.message.content;
+      }
     }
 
-    // Add bot response
+    // Format the response with markdown
+    const formattedResponse = md.render(responseContent);
+    
+    // Add bot response with empty content initially
     const botMessage: Message = {
       id: Date.now(),
       role: "assistant",
-      content: md.render(responseContent),
+      content: "",
+      isTyping: true
     };
     messages.value.push(botMessage);
+    
+    // Hide the loading indicator
+    loading.value = false;
+    
+    // Apply typewriter effect after the message is added to the DOM
+    await nextTick();
+    try {
+      await typewriterEffect(formattedResponse, botMessage);
+    } catch (typingError) {
+      console.error("Error during typing animation:", typingError);
+      // Fallback: just show the full response if animation fails
+      botMessage.content = formattedResponse;
+      botMessage.isTyping = false;
+    }
+    
   } catch (error) {
     console.error("Error sending message:", error);
     // Add error message
@@ -289,70 +401,11 @@ const sendMessage = async (message: string) => {
       id: Date.now(),
       role: "assistant",
       content: md.render("I'm having trouble connecting to the knowledge base right now. Please try again later."),
+      isTyping: false
     };
     messages.value.push(errorMessage);
-  } finally {
     loading.value = false;
   }
-};
-
-// Function to check if question is related to tea farming
-const checkIfTeaFarmingRelated = (message: string): boolean => {
-  const teaKeywords = [
-    "tea", "farming", "crop", "plant", "harvest", "fertilizer", "pest", "disease", 
-    "irrigation", "weather", "soil", "cultivation", "leaves", "quality", "sustainable", 
-    "organic", "processing", "market", "price", "yield", "variety", "seedling"
-  ];
-  
-  const lowercaseMessage = message.toLowerCase();
-  return teaKeywords.some(keyword => lowercaseMessage.includes(keyword));
-};
-
-// Function to generate response based on knowledge base
-const generateResponse = async (message: string): Promise<string> => {
-  // This would normally call an API with the knowledge base
-  // For now, we'll simulate some responses
-  
-  const lowercaseMessage = message.toLowerCase();
-  
-  if (lowercaseMessage.includes("pest")) {
-    return "**Common Tea Pests and Control Methods:**\n\n" +
-      "1. **Tea Mosquito Bug**: Apply neem-based pesticides or introduce natural predators like ladybugs.\n" +
-      "2. **Red Spider Mites**: Maintain proper humidity and use sulfur-based sprays when infestation is severe.\n" +
-      "3. **Thrips**: Use blue sticky traps and apply recommended insecticides during early morning or late evening.\n\n" +
-      "Always follow integrated pest management practices and consult your local agricultural extension office for specific recommendations for your region.";
-  } 
-  
-  if (lowercaseMessage.includes("fertilizer")) {
-    return "**Fertilizer Best Practices for Tea:**\n\n" +
-      "Tea plants generally require a balanced NPK fertilizer with slightly higher nitrogen content. Apply fertilizers in 3-4 split doses throughout the year, with heavier applications before the main growing seasons.\n\n" +
-      "* **Young plants**: 15:15:15 NPK ratio\n" +
-      "* **Mature plants**: 25:10:10 NPK ratio\n\n" +
-      "Organic options include well-decomposed compost, vermicompost, and bone meal. Always soil test before making major fertilizer decisions.";
-  }
-  
-  if (lowercaseMessage.includes("harvest")) {
-    return "**Tea Harvesting Guidelines:**\n\n" +
-      "The optimal time to harvest tea leaves is when there are 2-3 new leaves and a bud at the top of the plant. This is often referred to as the 'two leaves and a bud' standard.\n\n" +
-      "* **First flush**: Early spring (depending on your region)\n" +
-      "* **Second flush**: Early summer\n" +
-      "* **Monsoon flush**: During rainy season\n" +
-      "* **Autumn flush**: After monsoon season\n\n" +
-      "Harvest in the morning after dew has dried but before midday heat for best quality.";
-  }
-  
-  if (lowercaseMessage.includes("quality")) {
-    return "**Improving Tea Crop Quality:**\n\n" +
-      "1. **Proper pruning**: Maintain a table height of 75-90cm and prune every 3-5 years\n" +
-      "2. **Shade management**: Partial shade (40-60%) improves tea quality by increasing amino acid content\n" +
-      "3. **Timely harvesting**: Pick at the right maturity - two leaves and a bud\n" +
-      "4. **Post-harvest handling**: Process within 4-6 hours of plucking\n" +
-      "5. **Organic practices**: Reduce chemical inputs for better flavor profiles\n\n" +
-      "Quality tea leaves should have a bright appearance and feel slightly springy to touch.";
-  }
-  
-  // Default response for other tea-related questions
-  return "I'm not certain about that specific tea farming question. You might want to consult a local agricultural officer or expert for more guidance. Feel free to ask about pest control, fertilizer practices, harvesting techniques, or quality improvement methods.";
 };
 </script>
 
@@ -400,6 +453,61 @@ const generateResponse = async (message: string): Promise<string> => {
   }
   40% {
     transform: scale(1);
+  }
+}
+
+/* Typewriter cursor effect */
+.typewriter-text {
+  position: relative;
+  word-break: break-word;
+}
+
+.typewriter-text::after {
+  content: '|';
+  position: absolute;
+  display: inline-block;
+  margin-left: 2px;
+  animation: cursor-blink 0.7s infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* User message styling */
+.font-bold {
+  font-weight: 700;
+}
+
+/* Animation classes */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-spin {
+  animation: spin 2s linear infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>

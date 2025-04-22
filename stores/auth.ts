@@ -52,8 +52,8 @@ export const useAuthStore = defineStore('auth', {
         this.isAuthenticated = true
         
         // Store token in localStorage
-        localStorage.setItem('auth_token', 'dummy_token')
-        localStorage.setItem('user_phone', payload.phone)
+        window.localStorage.setItem('auth_token', 'dummy_token')
+        window.localStorage.setItem('user_phone', payload.phone)
         
         return true
       } catch (error) {
@@ -75,9 +75,9 @@ export const useAuthStore = defineStore('auth', {
         this.isAuthenticated = true
         
         // Store user data in localStorage
-        localStorage.setItem('auth_token', 'dummy_token')
-        localStorage.setItem('user_phone', payload.phone)
-        localStorage.setItem('user_name', payload.name)
+        window.localStorage.setItem('auth_token', 'dummy_token')
+        window.localStorage.setItem('user_phone', payload.phone)
+        window.localStorage.setItem('user_name', payload.name)
         
         return true
       } catch (error) {
@@ -91,9 +91,9 @@ export const useAuthStore = defineStore('auth', {
     logout() {
       this.user = null
       this.isAuthenticated = false
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user_phone')
-      localStorage.removeItem('user_name')
+      window.localStorage.removeItem('auth_token')
+      window.localStorage.removeItem('user_phone')
+      window.localStorage.removeItem('user_name')
     },
 
     checkAuth() {
