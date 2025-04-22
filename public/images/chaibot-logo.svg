@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+  <!-- Tea Cup -->
+  <path d="M36 16H8V32C8 38.6274 13.3726 44 20 44H24C30.6274 44 36 38.6274 36 32V16Z" fill="#4CAF50" stroke="#4CAF50" stroke-width="2"/>
+  
+  <!-- Cup Handle -->
+  <path d="M36 24H40C42.2091 24 44 22.2091 44 20V20C44 17.7909 42.2091 16 40 16H36" stroke="#4CAF50" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Steam -->
+  <path d="M14 12C14 10 16 8 18 10C20 12 22 10 22 8" stroke="#4CAF50" stroke-width="2" stroke-linecap="round"/>
+  <path d="M22 12C22 10 24 8 26 10C28 12 30 10 30 8" stroke="#4CAF50" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Tea Leaf -->
+  <path d="M20 24C20 24 24 20 28 24C32 28 28 32 24 32C20 32 16 28 20 24Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1"/>
+</svg>
